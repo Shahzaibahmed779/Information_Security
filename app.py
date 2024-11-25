@@ -1,8 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash
+from flask import Flask, jsonify, request, session
 import sqlite3
 import os
 from watermarker import embed_watermark, extract_watermark
-import streamlit as st
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -36,107 +35,63 @@ def init_db():
     conn.close()
 
 
-@app.route('/')
-def index():
-    init_db()  # Initialize the database when the app starts
-    return render_template('index.html')
-
-
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['POST'])
 def login():
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
-        user = cursor.fetchone()
-        conn.close()
-        if user and password == user['password']:
-            session['user_id'] = user['id']
-            session['email'] = user['email']
-            session['phone'] = user['phone']
-            session['is_admin'] = email == "shahzaibahmed779@gmail.com"
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid email or password.', 'danger')
-            return redirect(url_for('login'))
-    return render_template('login.html')
+    data = request.json
+    email = data['email']
+    password = data['password']
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
+    user = cursor.fetchone()
+    conn.close()
+
+    if user and password == user['password']:
+        session['user_id'] = user['id']
+        session['email'] = user['email']
+        session['phone'] = user['phone']
+        session['is_admin'] = email == "shahzaibahmed779@gmail.com"
+        return jsonify({'status': 'success', 'is_admin': session['is_admin']}), 200
+    else:
+        return jsonify({'status': 'failed', 'message': 'Invalid email or password'}), 401
 
 
-@app.route('/dashboard', methods=['GET', 'POST'])
-def dashboard():
-    if 'user_id' not in session:
-        flash('Please log in to access the dashboard.', 'warning')
-        return redirect(url_for('login'))
+@app.route('/upload', methods=['POST'])
+def upload():
+    if 'is_admin' not in session or not session['is_admin']:
+        return jsonify({'status': 'failed', 'message': 'Unauthorized'}), 403
 
-    if session.get('is_admin'):
-        # Streamlit for admin features
-        st.title("Admin Dashboard")
-        st.write("Welcome, Admin!")
+    uploaded_file = request.files.get('file')
+    if not uploaded_file or uploaded_file.filename == '':
+        return jsonify({'status': 'failed', 'message': 'No file provided'}), 400
 
-        # Upload a new file
-        if st.button("Upload a New File"):
-            uploaded_file = st.file_uploader("Choose a PNG file", type=["png"])
-            if uploaded_file:
-                file_path = os.path.join('static/images', uploaded_file.name)
-                with open(file_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-                st.success(f"File '{uploaded_file.name}' uploaded successfully!")
-
-        # Trace a file
-        if st.button("Trace a File"):
-            trace_file = st.file_uploader("Choose a watermarked PNG file to trace", type=["png"])
-            if trace_file:
-                trace_path = os.path.join('static/images', trace_file.name)
-                with open(trace_path, "wb") as f:
-                    f.write(trace_file.getbuffer())
-                watermark = extract_watermark(trace_path)
-                st.write("User's Credentials:")
-                st.write(watermark)
-
-        return st._main_run()
-
-    return render_template('dashboard.html')
+    file_path = os.path.join('static/images', uploaded_file.filename)
+    uploaded_file.save(file_path)
+    return jsonify({'status': 'success', 'message': f'File {uploaded_file.filename} uploaded successfully!'}), 200
 
 
-@app.route('/download', methods=['POST'])
-def download():
-    if 'user_id' not in session:
-        flash('Please log in to download images.', 'warning')
-        return redirect(url_for('login'))
+@app.route('/trace', methods=['POST'])
+def trace():
+    if 'is_admin' not in session or not session['is_admin']:
+        return jsonify({'status': 'failed', 'message': 'Unauthorized'}), 403
 
-    # Path to save records
-    base_record_path = r'C:\Users\Mahnoor\Desktop\University\IS\Term-Project\Record'
+    uploaded_file = request.files.get('file')
+    if not uploaded_file or uploaded_file.filename == '':
+        return jsonify({'status': 'failed', 'message': 'No file provided'}), 400
 
-    # Extract email from the session
-    user_email = session['email']
-
-    # Create a folder named after the email
-    user_folder = os.path.join(base_record_path, user_email)
-    if not os.path.exists(user_folder):
-        os.makedirs(user_folder)
-
-    # Requested image
-    image_name = request.form['image']
-    original_image_path = os.path.join('static', 'images', image_name)
-
-    # Save watermarked image in the user's folder
-    watermarked_image_path = os.path.join(user_folder, f"watermarked_{image_name}")
-
-    # Watermark text
-    watermark_text = f"{user_email}|{session['phone']}"
-    embed_watermark(original_image_path, watermarked_image_path, watermark_text)
-
-    # Return the file to the user without saving it in the project directory
-    return send_file(watermarked_image_path, as_attachment=True)
+    file_path = os.path.join('static/images', uploaded_file.filename)
+    uploaded_file.save(file_path)
+    watermark = extract_watermark(file_path)
+    return jsonify({'status': 'success', 'watermark': watermark}), 200
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
-    flash('Logged out successfully.', 'info')
-    return redirect(url_for('index'))
+    return jsonify({'status': 'success', 'message': 'Logged out successfully'}), 200
+
 
 if __name__ == '__main__':
-    print("Flask is running under Streamlit!")
+    init_db()
+    app.run(debug=True)
