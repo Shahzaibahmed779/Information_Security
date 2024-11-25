@@ -138,9 +138,5 @@ def logout():
     flash('Logged out successfully.', 'info')
     return redirect(url_for('index'))
 
-
 if __name__ == '__main__':
-    import os
-    if "streamlit" not in os.environ.get("STREAMLIT_RUN_CONTEXT", ""):
-        app.run(debug=True)
-
+    print("Flask is running under Streamlit!")
