@@ -140,4 +140,7 @@ def logout():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    import os
+    if "streamlit" not in os.environ.get("STREAMLIT_RUN_CONTEXT", ""):
+        app.run(debug=True)
+
