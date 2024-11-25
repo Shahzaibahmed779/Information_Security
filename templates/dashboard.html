@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #0a0a0a, #1b1b2f), 
+                        url('static/images/index.png') no-repeat center center fixed;
+            background-size: contain; /* Keep proportions of the background image */
+            color: white;
+        }
+
+        .dashboard {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px;
+        }
+
+        .welcome {
+            margin-bottom: 30px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .card {
+            background: rgba(0, 0, 0, 0.8); /* Semi-transparent background for the card */
+            padding: 20px 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5); /* Subtle shadow for depth */
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        label {
+            font-size: 16px;
+            color: #bbb;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background: #1b1b2f; /* Matches input fields in the theme */
+            color: white;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #4361ee;
+            box-shadow: 0 0 5px rgba(67, 97, 238, 0.8);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            background: linear-gradient(to right, #010000, #232370);
+            border: none;
+            border-radius: 25px;
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: scale(1.1);
+            background: linear-gradient(45deg, #4361ee, #3a0ca3);
+            box-shadow: 0 8px 20px rgba(67, 97, 238, 0.7);
+        }
+
+        .logout {
+            display: inline-block;
+            margin-top: 30px;
+            font-size: 15px;
+            color: rgb(236, 243, 246);
+            font-weight: semi-bold;
+            text-decoration: none;
+        }
+
+        .logout:hover {
+            text-decoration: underline;
+        }
+
+        .messages {
+            list-style-type: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+
+        .messages li {
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .messages li.danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .messages li.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .messages li.warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <h2 class="welcome">Welcome, {{ session['email'] }}</h2>
+        <div class="card">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                <ul class="messages">
+                  {% for category, message in messages %}
+                    <li class="{{ category }}">
+                      {{ message }}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            {% endwith %}
+            <form method="POST" action="{{ url_for('download') }}">
+                <label for="image">Select Image to Download:</label>
+                <select id="image" name="image" required>
+                    <option value="original_image.png">Original Image</option>
+                    <!-- Add more images as needed -->
+                </select>
+                <button type="submit">Download Watermarked Image</button>
+            </form>
+            <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+        </div>
+    </div>
+</body>
+</html>
