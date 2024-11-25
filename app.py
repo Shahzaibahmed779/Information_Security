@@ -1,17 +1,20 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash
 import sqlite3
 import os
-from watermarker import embed_watermark
+from watermarker import embed_watermark, extract_watermark
+import streamlit as st
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
 
 DATABASE = 'users.db'
 
+
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
+
 
 def init_db():
     conn = get_db_connection()
@@ -20,9 +23,14 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
-            phone TEXT UNIQUE NOT NULL,  
+            phone TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL
         )
+    ''')
+    # Insert hardcoded admin credentials if not already in the database
+    cursor.execute('''
+        INSERT OR IGNORE INTO users (email, phone, password) 
+        VALUES ("shahzaibahmed779@gmail.com", "03145276032", "f1h24*659/")
     ''')
     conn.commit()
     conn.close()
@@ -32,36 +40,6 @@ def init_db():
 def index():
     init_db()  # Initialize the database when the app starts
     return render_template('index.html')
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        email = request.form['email']
-        phone = request.form['phone']
-        password = request.form['password']  # Storing plaintext password
-
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute('INSERT INTO users (email, phone, password) VALUES (?, ?, ?)', (email, phone, password))
-            conn.commit()
-            conn.close()
-            flash('Registration successful! Please log in.', 'success')
-            return redirect(url_for('login'))
-        except sqlite3.IntegrityError as e:
-            if "email" in str(e):  # Check if the error is due to the email
-                flash('Email is already registered. Please use a different email.', 'danger')
-            elif "phone" in str(e):  # Check if the error is due to the phone number
-                flash('Phone number is already registered. Please use a different phone number.', 'danger')
-            else:
-                flash('An unexpected error occurred. Please try again.', 'danger')
-            return redirect(url_for('register'))
-
-        finally:
-            # Ensure the database connection is always closed
-            conn.close()
-
-    return render_template('register.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -78,18 +56,49 @@ def login():
             session['user_id'] = user['id']
             session['email'] = user['email']
             session['phone'] = user['phone']
+            session['is_admin'] = email == "shahzaibahmed779@gmail.com"
             return redirect(url_for('dashboard'))
         else:
             flash('Invalid email or password.', 'danger')
             return redirect(url_for('login'))
     return render_template('login.html')
 
-@app.route('/dashboard')
+
+@app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
     if 'user_id' not in session:
         flash('Please log in to access the dashboard.', 'warning')
         return redirect(url_for('login'))
+
+    if session.get('is_admin'):
+        # Streamlit for admin features
+        st.title("Admin Dashboard")
+        st.write("Welcome, Admin!")
+
+        # Upload a new file
+        if st.button("Upload a New File"):
+            uploaded_file = st.file_uploader("Choose a PNG file", type=["png"])
+            if uploaded_file:
+                file_path = os.path.join('static/images', uploaded_file.name)
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                st.success(f"File '{uploaded_file.name}' uploaded successfully!")
+
+        # Trace a file
+        if st.button("Trace a File"):
+            trace_file = st.file_uploader("Choose a watermarked PNG file to trace", type=["png"])
+            if trace_file:
+                trace_path = os.path.join('static/images', trace_file.name)
+                with open(trace_path, "wb") as f:
+                    f.write(trace_file.getbuffer())
+                watermark = extract_watermark(trace_path)
+                st.write("User's Credentials:")
+                st.write(watermark)
+
+        return st._main_run()
+
     return render_template('dashboard.html')
+
 
 @app.route('/download', methods=['POST'])
 def download():
@@ -121,6 +130,7 @@ def download():
 
     # Return the file to the user without saving it in the project directory
     return send_file(watermarked_image_path, as_attachment=True)
+
 
 @app.route('/logout')
 def logout():
